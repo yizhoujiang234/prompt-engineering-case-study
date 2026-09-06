@@ -1,5 +1,7 @@
 # Claude Fable 5.1 · 提示词工程项目
 
+**🚀 在线体验提示词优化器（免安装、无需配置）：<https://yizhoujiang234.github.io/prompt-engineering-case-study/>**
+
 把一份 **2195 行 / 约 275 KB 的生产级消费类 AI 助手系统提示词**当作软件工程对象来研究：
 无损拆解为 19 个可维护模块，提炼 10 个可复用的提示词设计模式，配套评审清单、
 变体组装脚本、回归用例库，以及一个基于同一方法论的**提示词优化器**网页工具。
@@ -43,7 +45,7 @@
 - **AI 模式**：可选接入 DeepSeek / Kimi / 通义 / OpenAI / Anthropic（密钥只存本机 localStorage）；
 - **双视图**：Markdown 渲染 / 源码，复制得到纯文本。
 
-打开方式：直接双击 `提示词优化器/index.html`，或任意静态服务器（如 `python -m http.server`）。
+打开方式：直接双击 `提示词优化器/index.html`，或用在线版：<https://yizhoujiang234.github.io/prompt-engineering-case-study/>（GitHub Pages，自动跳转）。
 
 ## 核心发现（TL;DR）
 

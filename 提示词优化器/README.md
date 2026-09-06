@@ -6,7 +6,9 @@
 
 ## 快速开始
 
-双击 `index.html` 即可（Vue 3 运行时已本地化，无任何构建步骤、无外部请求）。
+**在线版（推荐）**：<https://yizhoujiang234.github.io/prompt-engineering-case-study/>
+
+本地使用：双击 `index.html` 即可（Vue 3 运行时已本地化，无任何构建步骤、无外部请求）。
 也可以用任意静态服务器：`python -m http.server 8080`。
 
 ## 功能
