@@ -1,0 +1,7 @@
+# 生成产物（可由脚本重建）
+Claude-Fable-提示词工程项目/rebuilt-variant.md
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

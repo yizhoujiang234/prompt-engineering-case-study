@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>提示词优化器 · Prompt Optimizer</title>
+<style>
+  :root {
+    --bg: #eaf4fd;
+    --bg2: #ffffff;
+    --panel: #ffffff;
+    --panel2: #e3f1fc;
+    --border: #bfe0f5;
+    --text: #1e3a52;
+    --muted: #6b93b4;
+    --accent: #2f9de8;
+    --accent2: #1e88d0;
+    --deep: #14507e;
+    --ok: #16a34a;
+    --warn: #d97706;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scrollbar-gutter: stable; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c3ddf0; border-radius: 8px; border: 2px solid #fff; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+  body {
+    background:
+      radial-gradient(900px 400px at 85% -100px, rgba(47,157,232,.14), transparent 60%),
+      linear-gradient(160deg, #d6ecfb 0%, #eaf4fd 45%, #ffffff 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    min-height: 100vh; padding: 24px 20px 40px;
+  }
+  .container { max-width: 1320px; margin: 0 auto; }
+  header { margin-bottom: 22px; padding-left: 4px; }
+  header h1 {
+    font-size: 26px; letter-spacing: .5px; font-weight: 700;
+    background: linear-gradient(90deg, #14507e, #2f9de8 70%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    display: inline-block;
+  }
+  header h1 .dot { color: var(--accent); -webkit-text-fill-color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  header .sub b { color: var(--accent2); font-weight: 600; }
+  .grid { display: grid; grid-template-columns: 5fr 6fr; gap: 18px; align-items: start; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 14px;
+    box-shadow: 0 6px 24px rgba(47, 157, 232, 0.10);
+  }
+  .panel h2 {
+    font-size: 13px; color: var(--accent2); font-weight: 700;
+    letter-spacing: 1px; display: flex; align-items: center; gap: 8px;
+  }
+  .panel h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+  textarea, input, select {
+    background: #f7fbff; border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 11px 13px; font-size: 14px; width: 100%;
+    font-family: inherit; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  textarea:focus, input:focus, select:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47,157,232,.14); background: #fff;
+  }
+  textarea { resize: vertical; min-height: 130px; line-height: 1.7; }
+  textarea#inputBox { min-height: 165px; font-size: 15px; }
+  select { cursor: pointer; }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .opt-item label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .opt-item.wide { grid-column: 1 / -1; }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    background: #f7fbff; border: 1px solid var(--border); border-radius: 999px;
+    padding: 5px 13px; font-size: 12.5px; user-select: none; transition: all .15s;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip input { display: none; }
+  .chip.on {
+    border-color: var(--accent); color: var(--accent2);
+    background: rgba(47, 157, 232, 0.10); font-weight: 600;
+  }
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  button {
+    border: none; border-radius: 10px; padding: 11px 20px; font-size: 14px; cursor: pointer;
+    font-family: inherit; transition: all .15s; font-weight: 600;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #3aa9ef, #1e88d0); color: #fff;
+    box-shadow: 0 4px 14px rgba(47,157,232,.35);
+  }
+  .btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(47,157,232,.4); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-ghost { background: #f7fbff; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
+  .btn-ghost:hover { color: var(--accent2); border-color: var(--accent); background: #fff; }
+  .btn-ai {
+    background: linear-gradient(135deg, #4fc3f7, #1e88d0); color: #fff;
+    box-shadow: 0 4px 14px rgba(79,195,247,.35);
+  }
+  .btn-ai:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .btn-ai:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .btn-sm { padding: 6px 14px; font-size: 12.5px; border-radius: 8px; }
+  .divider { border: none; border-top: 1px dashed var(--border); margin: 2px 0; }
+  .ai-settings { display: none; flex-direction: column; gap: 10px; background: #f2f8fd; border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .ai-settings.open { display: flex; }
+  .ai-settings .row { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: center; }
+  .ai-settings .row label { font-size: 12.5px; color: var(--muted); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+  .output-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .output-head .actions { display: flex; gap: 8px; align-items: center; }
+  .view-toggle { display: flex; background: #f2f8fd; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .view-toggle button {
+    border-radius: 0; padding: 6px 14px; font-size: 12.5px; background: transparent;
+    color: var(--muted); font-weight: 500; box-shadow: none;
+  }
+  .view-toggle button.on { background: var(--accent); color: #fff; }
+  .tabs { display: flex; gap: 2px; border-bottom: 2px solid var(--border); }
+  .tab {
+    padding: 8px 16px; font-size: 13.5px; cursor: pointer; color: var(--muted);
+    border-radius: 8px 8px 0 0; position: relative; font-weight: 500; user-select: none;
+  }
+  .tab:hover { color: var(--accent2); }
+  .tab.active { color: var(--accent2); font-weight: 700; }
+  .tab.active::after {
+    content: ""; position: absolute; left: 10%; right: 10%; bottom: -2px;
+    height: 2.5px; border-radius: 2px; background: var(--accent);
+  }
+  .output-body {
+    background: #fbfdff; border: 1px solid var(--border); border-radius: 10px;
+    min-height: 480px; max-height: 72vh; overflow: auto;
+  }
+  pre#outputBox {
+    padding: 18px; font-family: Consolas, "Courier New", monospace; font-size: 13px;
+    line-height: 1.75; white-space: pre-wrap; word-break: break-word;
+  }
+  .md-body { padding: 20px 24px; font-size: 14px; line-height: 1.85; }
+  .md-body h1, .md-body h2, .md-body h3, .md-body h4 { color: var(--deep); margin: 18px 0 8px; line-height: 1.4; }
+  .md-body h1 { font-size: 20px; padding-bottom: 6px; border-bottom: 2px solid var(--panel2); }
+  .md-body h2 { font-size: 17px; padding-left: 10px; border-left: 4px solid var(--accent); }
+  .md-body h3 { font-size: 15px; color: var(--accent2); }
+  .md-body h4 { font-size: 14px; }
+  .md-body h1:first-child, .md-body h2:first-child { margin-top: 0; }
+  .md-body p { margin: 8px 0; }
+  .md-body ul, .md-body ol { margin: 8px 0; padding-left: 26px; }
+  .md-body li { margin: 4px 0; }
+  .md-body ul.cb { list-style: none; padding-left: 4px; }
+  .md-body ul.cb li { color: var(--muted); }
+  .md-body code {
+    background: var(--panel2); color: var(--accent2); padding: 1px 6px;
+    border-radius: 5px; font-size: 12.5px; font-family: Consolas, monospace;
+  }
+  .md-body pre.codeblock {
+    background: #f2f8fd; border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; margin: 10px 0; overflow-x: auto;
+    font-family: Consolas, monospace; font-size: 12.8px; line-height: 1.7;
+  }
+  .md-body pre.codeblock code { background: transparent; padding: 0; color: var(--text); }
+  .md-body table { border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 13px; }
+  .md-body th {
+    background: var(--panel2); color: var(--deep); text-align: left;
+    padding: 8px 12px; border: 1px solid var(--border);
+  }
+  .md-body td { padding: 7px 12px; border: 1px solid var(--border); }
+  .md-body tr:nth-child(even) td { background: #f7fbff; }
+  .md-body blockquote {
+    border-left: 4px solid var(--accent); background: #f2f8fd;
+    margin: 10px 0; padding: 8px 14px; border-radius: 0 8px 8px 0; color: var(--muted);
+  }
+  .md-body hr { border: none; border-top: 1px dashed var(--border); margin: 16px 0; }
+  .md-body strong { color: var(--deep); }
+  .md-body em { color: var(--accent2); }
+  .empty-tip { color: var(--muted); font-size: 14px; padding: 60px 20px; text-align: center; line-height: 2; }
+  .empty-tip .big { font-size: 34px; display: block; margin-bottom: 8px; opacity: .55; }
+  .checklist { padding: 16px; display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; }
+  .check-item { display: flex; gap: 10px; align-items: flex-start; line-height: 1.6; }
+  .check-item .st { flex-shrink: 0; font-weight: 700; }
+  .st.ok { color: var(--ok); } .st.warn { color: var(--warn); }
+  .method { padding: 18px 22px; font-size: 13.5px; line-height: 1.9; }
+  .method h3 { color: var(--accent2); font-size: 14px; margin: 12px 0 4px; }
+  .method code { background: var(--panel2); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+  .status {
+    font-size: 12.5px; color: var(--muted); min-height: 18px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status.err { color: #dc2626; }
+  .footer-note { color: var(--muted); font-size: 12px; text-align: center; margin-top: 18px; }
+  .copy-toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(6px);
+    background: var(--deep); color: #fff; padding: 9px 22px; border-radius: 999px;
+    font-size: 13px; opacity: 0; pointer-events: none; transition: all .25s;
+    box-shadow: 0 6px 20px rgba(20,80,126,.35);
+  }
+  .copy-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>提示词优化器<span class="dot">.</span></h1>
+    <div class="sub">方法论来自 <b>Claude-Fable-5.1 提示词工程项目</b> · 五层架构 / 10 设计模式 / 评审清单</div>
+  </header>
+
+  <div class="grid">
+    <!-- ============ 左侧：输入 ============ -->
+    <div class="panel">
+      <h2>① 你的粗略想法</h2>
+      <textarea id="inputBox" placeholder="简单写你要干嘛，比如：&#10;· 帮我写小红书文案的助手&#10;· 一个能总结周报并指出风险的提示词&#10;· 我要把一段长文改写成 10 岁小孩能看懂的版本"></textarea>
+      <div class="btn-row">
+        <button class="btn-ghost btn-sm" id="btnSample">填个示例</button>
+        <button class="btn-ghost btn-sm" id="btnClear">清空</button>
+      </div>
+
+      <h2>② 选项</h2>
+      <div class="options">
+        <div class="opt-item">
+          <label>提示词类型</label>
+          <select id="optType">
+            <option value="task">任务提示词（让模型干一件事）</option>
+            <option value="system">系统提示词（搭建一个助手）</option>
+          </select>
+        </div>
+        <div class="opt-item">
+          <label>输出语言</label>
+          <select id="optLang">
+            <option value="auto">跟随输入语言</option>
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+      <div class="checks" id="optToggles">
+        <label class="chip on"><input type="checkbox" checked value="format">输出格式规范</label>
+        <label class="chip on"><input type="checkbox" checked value="edge">边界与追问</label>
+        <label class="chip on"><input type="checkbox" checked value="test">判断测试</label>
+        <label class="chip"><input type="checkbox" value="example">留示例占位</label>
+        <label class="chip on"><input type="checkbox" checked value="selfcheck">自检清单</label>
+        <label class="chip on"><input type="checkbox" checked value="numeric">数值硬限</label>
+      </div>
+
+      <hr class="divider">
+
+      <h2>③ 生成</h2>
+      <div class="btn-row">
+        <button class="btn-primary" id="btnLocal">结构化优化（本地 · 无需 API）</button>
+        <button class="btn-ghost btn-sm" id="btnAiToggle">⚙ AI 设置</button>
+      </div>
+      <div class="ai-settings" id="aiSettings">
+        <details>
+          <summary>AI 深度优化需要调用大模型 API。密钥只保存在本机浏览器 localStorage，请求直接从你的浏览器发出，不经过任何中间服务器。</summary>
+        </details>
+        <div class="row"><label>API 协议</label>
+          <select id="aiProto">
+            <option value="openai">OpenAI 兼容（含 DeepSeek / Kimi / Qwen 等）</option>
+            <option value="anthropic">Anthropic（Claude）</option>
+          </select>
+        </div>
+        <div class="row"><label>Base URL</label><input id="aiBase" placeholder="https://api.openai.com/v1 或 https://api.anthropic.com"></div>
+        <div class="row"><label>API Key</label><input id="aiKey" type="password" placeholder="sk-..."></div>
+        <div class="row"><label>模型名</label><input id="aiModel" placeholder="如 gpt-4o / deepseek-chat / claude-sonnet-4-5"></div>
+        <div class="btn-row">
+          <button class="btn-ai" id="btnAi">✨ AI 深度优化</button>
+        </div>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <!-- ============ 右侧：输出 ============ -->
+    <div class="panel">
+      <div class="output-head">
+        <h2>④ 优化结果</h2>
+        <div class="actions">
+          <div class="view-toggle">
+            <button id="viewRender" class="on">渲染</button>
+            <button id="viewSource">源码</button>
+          </div>
+          <button class="btn-ghost btn-sm" id="btnCopy">复制</button>
+        </div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" data-tab="result">优化后的提示词</div>
+        <div class="tab" data-tab="check">评审检查</div>
+        <div class="tab" data-tab="method">用了哪些方法</div>
+      </div>
+      <div class="output-body" id="outputBody">
+        <div class="md-body" id="renderBox"><div class="empty-tip"><span class="big">✍️</span>在左侧写下你的想法，点击「结构化优化」或「AI 深度优化」<br>这里会显示优化后的提示词</div></div>
+        <pre id="outputBox" style="display:none"></pre>
+        <div class="checklist" id="checkPanel" style="display:none"></div>
+        <div class="method" id="methodPanel" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">本地优化在浏览器内完成，不上传任何内容 · AI 模式的密钥仅存本机 · 方法论源头：modules/ 与 docs/ 目录</div>
+</div>
+<div class="copy-toast" id="toast">已复制到剪贴板</div>
+
+<script>
+/* ================================================================
+ * 知识库：从 Claude-Fable-提示词工程项目 提炼
+ * ==============================================================*/
+
+const PATTERNS = [
+  { id: 1,  name: "关键块定级",   desc: "不可妥协的规则用 CRITICAL/特殊标签包裹，且 ≤5 条——全文都是 critical 等于没有 critical" },
+  { id: 2,  name: "正反例三件套", desc: "易错规则配「好回答 + 坏回答 + 理由」，反例比正面描述更精准地划出边界" },
+  { id: 3,  name: "判断测试",     desc: "if-else 列不全时，改用可操作的问句，如「这条信息一个月后还成立吗？」" },
+  { id: 4,  name: "数值硬限",     desc: "把「适度/尽量/少量」换成可数可审计的数字，如「引用 <15 词」「每来源 ≤1 次」" },
+  { id: 5,  name: "路由决策树",   desc: "多出口场景写显式有序决策步骤，最后一步永远是兜底出口" },
+  { id: 6,  name: "分级+护栏",    desc: "敏感事项分三级管理，并加「用户明确要求也不执行」的行为护栏" },
+  { id: 7,  name: "禁用表述清单", desc: "直接封杀高频翻车话术，比「要自然」可执行得多" },
+  { id: 8,  name: "示例分组",     desc: "示例按行为分组，且必须覆盖：最小 / 典型 / 不用 / 边界 四类" },
+  { id: 9,  name: "运行时占位",   desc: "日期、档案、清单等易变内容做成 {{占位符}}，不硬编码" },
+  { id: 10, name: "描述即提示词", desc: "规则下沉到离决策点最近的地方：何时用 / 何时不用 / 与相近项的优先级" },
+];
+
+const CHECKLIST = [
+  { g: "结构",     item: "有明确的角色/身份定义",           test: t => /你是|You are|# 角色|<identity>/i.test(t) },
+  { g: "结构",     item: "任务/目标表述明确无歧义",          test: t => /任务|目标|goal|task/i.test(t) },
+  { g: "结构",     item: "有输出格式或输出要求说明",         test: t => /输出|格式|format|结构/i.test(t) },
+  { g: "行为",     item: "有边界情况处理（信息不足时怎么办）", test: t => /边界|不足|不清|追问|edge|如果.*(缺失|缺少)/i.test(t) },
+  { g: "行为",     item: "有自检/校验环节",                test: t => /自检|检查|核对|verify|check/i.test(t) },
+  { g: "行为",     item: "有判断测试（问句式启发规则）",     test: t => /吗[？?]|是否|该不该|值不值/i.test(t) },
+  { g: "精度",     item: "含数值硬限（无「适度/尽量」等模糊词）", test: t => /\d+\s*(词|字|条|个|句|段|次|行|张|分钟|秒|words|items)/i.test(t) },
+  { g: "精度",     item: "模糊词已替换（适度/尽量/一般来说/尽可能）", test: t => !/(适度|尽量|一般来说|尽可能|酌情)/.test(t.replace(/「[^」]*」/g, "")), warnOnly: true },
+  { g: "示例",     item: "有示例或示例占位",               test: t => /示例|例子|example|比如|e\.g\./i.test(t) },
+  { g: "安全",     item: "有禁用表述/避坑清单",            test: t => /禁止|不要|避免|不得|禁止使用|do not|never/i.test(t) },
+];
+
+/* AI 模式的系统提示词：把项目方法论蒸馏后注入 */
+const AI_SYSTEM_PROMPT = [
+"你是一位资深提示词工程师。用户会给你一段粗略的意图描述，你的任务是把它们重写为一份结构清晰、可直接使用的高质量提示词。",
+"",
+"你遵循以下来自生产级系统提示词（Claude Fable 5.1 系统提示词拆解项目）的方法论：",
+"",
+"## 五层结构（系统提示词用）",
+"身份层（你是谁/环境/知识截止）→ 安全层（3-5 条 critical 底线）→ 行为层（语气/格式/价值观）→ 能力层（核心规则）→ 运行时层（易变内容用 {{占位符}}）。",
+"",
+"## 10 个设计模式",
+"1. 关键块定级：不可妥协的规则 ≤5 条，用 CRITICAL 块包裹，不滥用；",
+"2. 正反例三件套：易错规则配「好回答+坏回答+理由(rationale)」；",
+"3. 判断测试：if-else 列不全时改用问句（如「这条信息一个月后还成立吗？」）；",
+"4. 数值硬限：把「适度/尽量/少量」全部换成可数可审计的数字；",
+"5. 路由决策树：多出口场景写显式有序步骤，最后一步永远是兜底出口；",
+"6. 分级+护栏：敏感事项分三级，并加「用户明确要求也不执行」的行为护栏；",
+"7. 禁用表述清单：封杀高频翻车话术，比抽象要求可执行；",
+"8. 示例分组：覆盖最小/典型/不用/边界四类，「何时不用」最重要；",
+"9. 运行时占位：日期/档案/清单等易变内容用 {{占位符}}，不硬编码；",
+"10. 描述即提示词：规则写在与决策点最近的位置（何时用/何时不用/优先级）。",
+"",
+"## 工作规则",
+"- 忠于用户的原始意图，补全的是结构和工程细节，不擅自改变任务目标；",
+"- 用户意图中的关键信息缺失时，在提示词里用 {{占位符}} 标注并附一句填写说明，不要编造；",
+"- 模糊表述（「写好一点」「专业一些」）必须转成可执行的数字或问句测试；",
+"- 若适合加示例，写 1-2 组正反例三件套，不要堆砌；",
+"- 提示词中不要出现「作为 AI 语言模型」之类的元话语。",
+"",
+"## 输出格式（严格遵守）",
+"第一部分：直接输出优化后的完整提示词正文。不要用代码块把整个提示词包起来，标题直接用 markdown 标题书写；提示词内部确需代码块时才使用代码块，且不要嵌套。",
+"然后输出一行只有三个短横线的分隔线：---",
+"第二部分：标题「关键优化」，用 3-5 条要点，每条一句话，说明做了什么优化（可对照模式编号）。",
+"第三部分：标题「待补充事项」，列出用户需要自行填写或决策的事项；没有则写「无」。",
+"除以上三部分外不要输出任何其他内容。所有说明文字克制简洁，不使用表情符号，不堆砌装饰符号，不重复提示词里已有的内容。"
+].join("\n");
+
+/* ================================================================
+ * 轻量 Markdown 渲染器（无外部依赖）
+ * ==============================================================*/
+
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+function inlineMD(s) {
+  s = esc(s);
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  return s;
+}
+
+function renderMD(src) {
+  const lines = src.split("\n");
+  const html = [];
+  let i = 0, inCode = false, code = [];
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      if (!inCode) { inCode = true; code = []; }
+      else { inCode = false; html.push('<pre class="codeblock">' + esc(code.join("\n")) + "</pre>"); }
+      i++; continue;
+    }
+    if (inCode) { code.push(line); i++; continue; }
+    if (/^#{1,6}\s/.test(line)) {
+      const m = line.match(/^(#{1,6})\s+(.*)/);
+      const lvl = Math.min(m[1].length + 1, 5);
+      html.push("<h" + lvl + ">" + inlineMD(m[2]) + "</h" + lvl + ">"); i++; continue;
+    }
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) { html.push("<hr>"); i++; continue; }
+    if (/^\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+      const parseRow = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      const head = parseRow(line); i += 2;
+      const body = [];
+      while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) { body.push(parseRow(lines[i])); i++; }
+      html.push("<table><thead><tr>" + head.map(h => "<th>" + inlineMD(h) + "</th>").join("") + "</tr></thead><tbody>"
+        + body.map(r => "<tr>" + r.map(c => "<td>" + inlineMD(c) + "</td>").join("") + "</tr>").join("") + "</tbody></table>");
+      continue;
+    }
+    if (/^\s*-\s\[[ xX]\]/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\s*-\s\[[ xX]\]/.test(lines[i])) {
+        const chk = /[xX]/.test(lines[i].match(/^\s*-\s\[([ xX])\]/)[1]);
+        items.push({ chk, txt: lines[i].replace(/^\s*-\s\[[ xX]\]\s*/, "") }); i++;
+      }
+      html.push('<ul class="cb">' + items.map(x => "<li>" + (x.chk ? "☑" : "☐") + " " + inlineMD(x.txt) + "</li>").join("") + "</ul>");
+      continue;
+    }
+    if (/^\s*[-*]\s+/.test(line) || /^\s*\d+\.\s+/.test(line)) {
+      const ordered = /^\s*\d+\./.test(line);
+      const items = [];
+      while (i < lines.length && (/^\s*[-*]\s+/.test(lines[i]) || /^\s*\d+\.\s+/.test(lines[i]))) {
+        items.push(lines[i].replace(/^\s*(?:[-*]|\d+\.)\s+/, "")); i++;
+        while (i < lines.length && lines[i].trim() && !/^(\s*[-*]\s+|\s*\d+\.\s+|#{1,6}\s|\||\s*```|\s*>)/.test(lines[i])) {
+          items[items.length - 1] += " " + lines[i].trim(); i++;
+        }
+      }
+      html.push((ordered ? "<ol>" : "<ul>") + items.map(x => "<li>" + inlineMD(x) + "</li>").join("") + (ordered ? "</ol>" : "</ul>"));
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const q = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) { q.push(lines[i].replace(/^>\s?/, "")); i++; }
+      html.push("<blockquote>" + inlineMD(q.join(" ")) + "</blockquote>");
+      continue;
+    }
+    if (line.trim() === "") { i++; continue; }
+    const p = [];
+    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|\s*```|\||\s*[-*]\s|\s*\d+\.\s|>)/.test(lines[i])) { p.push(lines[i]); i++; }
+    if (p.length) html.push("<p>" + inlineMD(p.join("\n")).replace(/\n/g, "<br>") + "</p>");
+    else i++;
+  }
+  return html.join("\n");
+}
+
+/* ================================================================
+ * 本地结构化优化引擎
+ * ==============================================================*/
+
+function detectLang(text) {
+  const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const letters = (text.match(/[a-zA-Z]/g) || []).length;
+  return cjk >= letters ? "zh" : "en";
+}
+
+function cleanIntent(text) {
+  return text.trim().replace(/\r/g, "").split("\n").map(l => l.trim()).filter(Boolean).join("\n  ");
+}
+
+function getToggles() {
+  const on = {};
+  document.querySelectorAll("#optToggles input").forEach(cb => on[cb.value] = cb.checked);
+  return on;
+}
+
+function buildTaskPrompt(raw, opts) {
+  const zh = opts.lang === "zh" || (opts.lang === "auto" && detectLang(raw) === "zh");
+  const intent = cleanIntent(raw);
+  const t = opts.toggles;
+  const hasFormat = t.format, hasEdge = t.edge, hasTest = t.test,
+        hasExample = t.example, hasSelf = t.selfcheck, hasNum = t.numeric;
+
+  if (zh) {
+    const L = [];
+    L.push("# 角色");
+    L.push("你是完成下述任务的领域专家，工作严谨、输出可靠。");
+    L.push("");
+    L.push("# 任务");
+    L.push(intent);
+    L.push("");
+    L.push("# 执行要求");
+    L.push("1. 忠于上述任务目标，不要擅自扩大或缩小范围。");
+    if (hasNum) L.push("2. 所有质量描述必须可验证：数量、长度、条数等用数字写明（例如「不超过 300 字」「列出 3-5 条」）。");
+    else L.push("2. 关键质量要求必须可验证，避免「适度」「尽量」等模糊词。");
+    if (hasTest) L.push("3. 遇到取舍不确定时，用这个问题自查：「这样做一个月后回头看仍然正确吗？」再决定。");
+    if (hasEdge) L.push("4. 信息不足以完成任务时，列出缺失的关键信息并逐条追问，不要靠猜测填补。");
+    if (hasExample) {
+      L.push("");
+      L.push("# 示例（可选，用于校准风格）");
+      L.push("<!-- 建议按「好回答 + 坏回答 + 理由」三件套补 1-2 组 -->");
+    }
+    if (hasFormat) {
+      L.push("");
+      L.push("# 输出格式");
+      L.push("{{在此写明输出结构，例如：分节的 markdown / JSON 字段列表 / 纯文本段落}}");
+      L.push("输出前先自查一遍是否符合上述结构。");
+    }
+    if (hasSelf) {
+      L.push("");
+      L.push("# 完成前自检");
+      L.push("- [ ] 是否完全覆盖了任务目标，没有遗漏要点？");
+      L.push("- [ ] 所有硬性数字/格式要求是否逐条满足？");
+      L.push("- [ ] 有没有掺入任务之外的内容？有则删除。");
+    }
+    return L.join("\n");
+  } else {
+    const L = [];
+    L.push("# Role");
+    L.push("You are a domain expert who completes the task below with rigor and reliability.");
+    L.push("");
+    L.push("# Task");
+    L.push(intent);
+    L.push("");
+    L.push("# Requirements");
+    L.push("1. Stay faithful to the task goal; do not expand or shrink its scope.");
+    if (hasNum) L.push("2. Make every quality requirement verifiable with numbers (e.g. \"under 300 words\", \"list 3-5 items\").");
+    else L.push("2. Every quality requirement must be verifiable; avoid vague words like \"moderate\" or \"try to\".");
+    if (hasTest) L.push("3. When facing a trade-off, ask yourself: \"Will this still look right a month from now?\" before deciding.");
+    if (hasEdge) L.push("4. If key information is missing, list what is missing and ask — never fill gaps by guessing.");
+    if (hasExample) {
+      L.push("");
+      L.push("# Examples (optional, calibrates style)");
+      L.push("<!-- Suggested format: good answer + bad answer + rationale, 1-2 groups -->");
+    }
+    if (hasFormat) {
+      L.push("");
+      L.push("# Output Format");
+      L.push("{{specify the structure here: e.g. sectioned markdown / JSON fields / plain paragraphs}}");
+    }
+    if (hasSelf) {
+      L.push("");
+      L.push("# Self-check Before Finishing");
+      L.push("- [ ] All task goals covered, nothing missed?");
+      L.push("- [ ] Every hard numeric/format requirement met?");
+      L.push("- [ ] No off-topic content? Remove it if any.");
+    }
+    return L.join("\n");
+  }
+}
+
+function buildSystemPrompt(raw, opts) {
+  const zh = opts.lang === "zh" || (opts.lang === "auto" && detectLang(raw) === "zh");
+  const intent = cleanIntent(raw);
+  const t = opts.toggles;
+  const hasFormat = t.format, hasEdge = t.edge, hasTest = t.test,
+        hasExample = t.example, hasSelf = t.selfcheck, hasNum = t.numeric;
+
+  if (zh) {
+    const L = [];
+    L.push("<identity>");
+    L.push("你是 {{产品/助手名}}，一个专注于以下领域的智能助手：");
+    L.push(intent);
+    L.push("运行环境：{{界面形态，如网页对话 / 命令行 / App}}。");
+    L.push("</identity>");
+    L.push("");
+    L.push("<critical_rules>");
+    L.push("<!-- 只放 3-5 条不可妥协的底线，宁少勿滥，全部写在本次任务范围内 -->");
+    L.push("- {{底线 1，如：不确定的事实必须说明不确定，绝不编造}}");
+    L.push("- {{底线 2，如：涉及 {{高危领域}} 时只提供信息，不替用户做决定}}");
+    L.push("</critical_rules>");
+    L.push("");
+    L.push("<tone_and_formatting>");
+    L.push("语气：{{温暖直接 / 专业简洁，二选一}}；默认短段落。");
+    L.push("列表仅在枚举、步骤、比较三种场景使用。");
+    L.push("禁用表述：{{收集到的高频翻车话术，如「作为一个AI」「希望这对你有帮助」}}。");
+    L.push("</tone_and_formatting>");
+    L.push("");
+    L.push("<domain_capability>");
+    L.push("<!-- 核心能力规则。每条自查三件事：能否配正反例？能否换成问句测试？" + (hasNum ? "「适度/尽量」是否已换成数字？ -->" : " -->"));
+    L.push("{{规则 1}}" + (hasNum ? "  <!-- 带数字：如「每次最多 X 条」-->" : ""));
+    L.push("{{规则 2}}");
+    L.push("</domain_capability>");
+    if (hasTest) {
+      L.push("");
+      L.push("<judgment_tests>");
+      L.push("<!-- 枚举列不全的场景改用问句，让模型自行泛化判断： -->");
+      L.push("- 这条内容一个月后还成立/还有用吗？（决定要不要保留）");
+      L.push("- {{针对你的领域再写 1-2 个判断问句}}");
+      L.push("</judgment_tests>");
+    }
+    if (hasEdge) {
+      L.push("");
+      L.push("<edge_handling>");
+      L.push("用户请求超出能力范围或信息不足时：明确说明 + 追问缺失信息，不靠猜测填补。");
+      L.push("拒绝格式：明确拒绝 + 一句理由 + 一个可行的替代方向。");
+      L.push("</edge_handling>");
+    }
+    if (hasFormat) {
+      L.push("");
+      L.push("<output_rules>");
+      L.push("输出结构：{{写明默认输出格式，如 markdown 分节 / 先结论后细节}}");
+      L.push("篇幅：{{数值硬限，如「回答不超过 500 字，除非用户要求展开」}}");
+      L.push("</output_rules>");
+    }
+    if (hasExample) {
+      L.push("");
+      L.push("<examples>");
+      L.push("<!-- 按 4 类分组，各 1 组即可：最小场景 / 典型场景 / 不用场景 / 边界场景 -->");
+      L.push('<example_group name="典型">');
+      L.push("  <input>{{用户输入}}</input>");
+      L.push("  <good_response>{{好回答}}</good_response>");
+      L.push("  <bad_response>{{坏回答}}</bad_response>");
+      L.push("  <rationale>{{一句话理由}}</rationale>");
+      L.push("</example_group>");
+      L.push("</examples>");
+    }
+    if (hasSelf) {
+      L.push("");
+      L.push("<self_check>");
+      L.push("每次回复前自查：是否越出 <identity> 声明的职责范围？是否违反 <critical_rules>？数字/格式硬限是否满足？");
+      L.push("</self_check>");
+    }
+    L.push("");
+    L.push("<runtime_context>");
+    L.push("<!-- 易变内容不硬编码，运行时注入 -->");
+    L.push("当前日期：{{date}}");
+    L.push("用户档案：{{profile}}");
+    L.push("</runtime_context>");
+    return L.join("\n");
+  } else {
+    const L = [];
+    L.push("<identity>");
+    L.push("You are {{product/assistant name}}, an assistant focused on:");
+    L.push(intent);
+    L.push("Environment: {{interface, e.g. web chat / CLI / app}}.");
+    L.push("</identity>");
+    L.push("");
+    L.push("<critical_rules>");
+    L.push("<!-- 3-5 non-negotiable rules only; do not overuse -->");
+    L.push("- {{rule 1, e.g. never fabricate facts; state uncertainty explicitly}}");
+    L.push("</critical_rules>");
+    L.push("");
+    L.push("<tone_and_formatting>");
+    L.push("Tone: {{warm & direct / professional & concise}}; short paragraphs by default.");
+    L.push("Lists only for enumeration, steps, or comparisons.");
+    L.push("Banned phrases: {{collected failure phrases}}.");
+    L.push("</tone_and_formatting>");
+    L.push("");
+    L.push("<domain_capability>");
+    L.push("<!-- Core rules. For each: can it have a good/bad example? Can it become a heuristic question? -->");
+    L.push("{{rule 1}}");
+    L.push("</domain_capability>");
+    if (hasTest) {
+      L.push("");
+      L.push("<judgment_tests>");
+      L.push("- Will this still be valid/useful a month from now? (decide whether to keep)");
+      L.push("</judgment_tests>");
+    }
+    if (hasEdge) {
+      L.push("");
+      L.push("<edge_handling>");
+      L.push("When the request is out of scope or info is missing: say so + ask. Refusal format: decline + reason + alternative.");
+      L.push("</edge_handling>");
+    }
+    if (hasFormat) {
+      L.push("");
+      L.push("<output_rules>");
+      L.push("Structure: {{default output format}}; Length: {{numeric limit, e.g. under 500 words unless asked}}.");
+      L.push("</output_rules>");
+    }
+    if (hasExample) {
+      L.push("");
+      L.push("<examples>");
+      L.push("<!-- 4 groups: minimal / typical / when-NOT-to / boundary -->");
+      L.push("  <input>...</input><good_response>...</good_response><bad_response>...</bad_response><rationale>...</rationale>");
+      L.push("</examples>");
+    }
+    if (hasSelf) {
+      L.push("");
+      L.push("<self_check>");
+      L.push("Before every reply: within declared scope? any critical rule violated? numeric limits met?");
+      L.push("</self_check>");
+    }
+    L.push("");
+    L.push("<runtime_context>");
+    L.push("Current date: {{date}}; User profile: {{profile}}");
+    L.push("</runtime_context>");
+    return L.join("\n");
+  }
+}
+
+function runChecklist(text) {
+  return CHECKLIST.map(c => ({
+    group: c.g, item: c.item, warnOnly: !!c.warnOnly,
+    pass: !!c.test(text),
+  }));
+}
+
+/* ================================================================
+ * AI 调用
+ * ==============================================================*/
+
+async function callAI(raw, opts) {
+  const proto = document.getElementById("aiProto").value;
+  let base = document.getElementById("aiBase").value.trim().replace(/\/+$/, "");
+  const key = document.getElementById("aiKey").value.trim();
+  const model = document.getElementById("aiModel").value.trim();
+  if (!base) base = proto === "openai" ? "https://api.openai.com/v1" : "https://api.anthropic.com";
+  if (!key) throw new Error("请先填写 API Key（点「⚙ AI 设置」）");
+  if (!model) throw new Error("请先填写模型名");
+
+  const userMsg = "我的粗略意图：\n" + raw + "\n\n提示词类型：" + (opts.type === "system" ? "系统提示词（搭建一个助手）" : "任务提示词（让模型干一件事）")
+    + "\n输出语言：" + (opts.lang === "zh" ? "中文" : opts.lang === "en" ? "English" : "跟随输入语言");
+
+  if (proto === "openai") {
+    const res = await fetch(base + "/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+      body: JSON.stringify({
+        model, temperature: 0.4,
+        messages: [
+          { role: "system", content: AI_SYSTEM_PROMPT },
+          { role: "user", content: userMsg },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error("API 错误 " + res.status + ": " + (await res.text()).slice(0, 300));
+    const data = await res.json();
+    return data.choices[0].message.content;
+  } else {
+    const res = await fetch(base + "/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model, max_tokens: 4096,
+        system: AI_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: userMsg }],
+      }),
+    });
+    if (!res.ok) throw new Error("API 错误 " + res.status + ": " + (await res.text()).slice(0, 300));
+    const data = await res.json();
+    return data.content.map(b => b.text || "").join("");
+  }
+}
+
+/* ================================================================
+ * UI 逻辑
+ * ==============================================================*/
+
+const $ = id => document.getElementById(id);
+let lastResult = "";
+
+function setStatus(msg, isErr) {
+  const el = $("status");
+  el.textContent = msg || "";
+  el.className = "status" + (isErr ? " err" : "");
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+  $("renderBox").style.display = (name === "result" && viewMode === "render") ? "block" : "none";
+  $("outputBox").style.display = (name === "result" && viewMode === "source") ? "block" : "none";
+  $("checkPanel").style.display = name === "check" ? "block" : "none";
+  $("methodPanel").style.display = name === "method" ? "block" : "none";
+}
+
+let viewMode = "render";
+function setView(mode) {
+  viewMode = mode;
+  $("viewRender").classList.toggle("on", mode === "render");
+  $("viewSource").classList.toggle("on", mode === "source");
+  const hasResult = !!lastResult;
+  $("renderBox").style.display = (mode === "render" && hasResult) ? "block" : "none";
+  $("outputBox").style.display = (mode === "source" && hasResult) ? "block" : "none";
+}
+
+function renderResult(text, appliedLocal) {
+  lastResult = text;
+  $("outputBox").textContent = text;
+  $("renderBox").innerHTML = renderMD(text);
+  setView("render");
+  const checks = runChecklist(text);
+  $("checkPanel").innerHTML = checks.map(c =>
+    '<div class="check-item"><span class="st ' + (c.pass ? "ok" : "warn") + '">'
+    + (c.pass ? "✓" : "△") + "</span><span>【" + c.group + "】" + c.item
+    + (c.pass ? "" : " —— <i style='color:var(--muted)'>建议补充或人工确认</i>") + "</span></div>"
+  ).join("");
+  renderMethod(appliedLocal);
+  showTab("result");
+}
+
+function renderMethod(appliedLocal) {
+  let html = "<p>本工具的方法论全部来自 <b>Claude-Fable-提示词工程项目</b>（对一份 2195 行生产级系统提示词的拆解）。本次生成应用/引用了：</p>";
+  html += (appliedLocal || []).map(i => {
+    const p = PATTERNS.find(x => x.id === i);
+    return "<h3>模式 " + p.id + " · " + p.name + "</h3><p>" + p.desc + "</p>";
+  }).join("");
+  html += "<h3>完整方法论</h3><p>10 个模式的逐条解析（含原文行号证据）见 <code>docs/02-设计模式解析.md</code>；五层骨架见 <code>templates/系统提示词骨架.md</code>；完整评审清单见 <code>templates/提示词评审清单.md</code>。</p>";
+  html += "<p style='margin-top:10px;color:var(--muted)'>提示：占位符 <code>{{...}}</code> 处需要你结合实际场景填写；勾选「留示例占位」可生成正反例三件套框架。</p>";
+  $("methodPanel").innerHTML = html;
+}
+
+function getOpts() {
+  return { type: $("optType").value, lang: $("optLang").value, toggles: getToggles() };
+}
+
+$("btnLocal").addEventListener("click", () => {
+  const raw = $("inputBox").value.trim();
+  if (!raw) { setStatus("先在左侧写下你要干嘛", true); return; }
+  const opts = getOpts();
+  const text = opts.type === "system" ? buildSystemPrompt(raw, opts) : buildTaskPrompt(raw, opts);
+  renderResult(text, opts.type === "system" ? [1, 3, 4, 5, 7, 9] : [3, 4, 2, 5]);
+  setStatus("本地结构化优化完成（未调用任何网络）");
+});
+
+$("btnAi").addEventListener("click", async () => {
+  const raw = $("inputBox").value.trim();
+  if (!raw) { setStatus("先在左侧写下你要干嘛", true); return; }
+  const opts = getOpts();
+  const btn = $("btnAi");
+  btn.disabled = true; btn.textContent = "⏳ 优化中…";
+  setStatus("正在调用 " + $("aiModel").value.trim() + " …");
+  try {
+    const text = await callAI(raw, opts);
+    renderResult(text, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    setStatus("AI 深度优化完成");
+  } catch (e) {
+    setStatus("失败：" + e.message, true);
+  } finally {
+    btn.disabled = false; btn.textContent = "✨ AI 深度优化";
+  }
+});
+
+$("btnAiToggle").addEventListener("click", () => {
+  $("aiSettings").classList.toggle("open");
+  const saved = localStorage.getItem("po_ai_cfg");
+  if (saved) {
+    try {
+      const c = JSON.parse(saved);
+      if (c.proto) $("aiProto").value = c.proto;
+      if (c.base) $("aiBase").value = c.base;
+      if (c.key) $("aiKey").value = c.key;
+      if (c.model) $("aiModel").value = c.model;
+    } catch (e) {}
+  }
+});
+
+["aiProto", "aiBase", "aiKey", "aiModel"].forEach(id => {
+  $(id).addEventListener("change", () => {
+    localStorage.setItem("po_ai_cfg", JSON.stringify({
+      proto: $("aiProto").value, base: $("aiBase").value,
+      key: $("aiKey").value, model: $("aiModel").value,
+    }));
+  });
+});
+
+$("btnClear").addEventListener("click", () => { $("inputBox").value = ""; $("inputBox").focus(); });
+
+$("btnSample").addEventListener("click", () => {
+  $("inputBox").value = "我想要一个帮我写小红书文案的助手。给它一个产品名和一些卖点，它要写出吸引人的标题和正文，不要太夸张，别用太多感叹号，最好能给我几个备选。";
+});
+
+$("btnCopy").addEventListener("click", () => {
+  if (!lastResult) { setStatus("还没有可复制的结果", true); return; }
+  navigator.clipboard.writeText(lastResult).then(() => {
+    const t = $("toast"); t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1500);
+  }).catch(() => {
+    const ta = document.createElement("textarea");
+    ta.value = lastResult; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove();
+    const t = $("toast"); t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1500);
+  });
+});
+
+$("viewRender").addEventListener("click", () => setView("render"));
+$("viewSource").addEventListener("click", () => setView("source"));
+
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => showTab(t.dataset.tab)));
+
+document.querySelectorAll("#optToggles .chip input").forEach(cb => {
+  cb.addEventListener("change", () => cb.parentElement.classList.toggle("on", cb.checked));
+});
+</script>
+</body>
+</html>
