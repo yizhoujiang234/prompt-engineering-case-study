@@ -1,0 +1,8 @@
+# 本项目的无损校验依赖 LF 行尾，任何平台检出都必须保持 LF
+* text=auto
+*.md   text eol=lf
+*.jsonl text eol=lf
+*.ps1  text eol=lf
+*.html text eol=lf
+*.js   text eol=lf
+LICENSE text eol=lf
